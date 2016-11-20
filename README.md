@@ -1,4 +1,3 @@
 /*
-* endhomelessnessottawa yay
-* you rock!
+* Wordpress plugin for advocacy
 */
