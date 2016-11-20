@@ -1,0 +1,22 @@
+@charset "UTF-8";
+/* CSS Document */
+
+.button {
+    background-color: white;
+    color: black;
+    border: 2px solid #b2221f;
+    padding: 10px 25px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    -webkit-transition-duration: 0.4s; /* Safari */
+    transition-duration: 0.4s;
+    cursor: pointer;
+}
+
+.button:hover {
+    background-color: #b2221f;
+    color: white;
+}
