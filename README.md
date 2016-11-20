@@ -1,4 +1,4 @@
-![header image](https://github.com/cmjaimet/endhomelessnessottawa/speakout.png)
+![header image](https://cmjaimet.github.io/endhomelessnessottawa/speakout.png)
 
 /*
 * Wordpress plugin for advocacy
