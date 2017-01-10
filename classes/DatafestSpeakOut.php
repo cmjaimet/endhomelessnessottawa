@@ -7,15 +7,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 global $datafest_letter_writing;
-$datafest_letter_writing = new DatafestLetterWriting();
+$datafest_letter_writing = new DatafestSpeakOut();
 
 /** DEFINE THE CLASS THAT HANDLES THE BACK END **/
-class DatafestLetterWriting {
+class DatafestSpeakOut {
 
 	private $post_type = 'letter';
 	private $letter_id = 0;
 	private $letter = null;
-	private $fsa = '';
+	private $postal = '';
 	private $user_name = '';
 	private $user_email = '';
 	private $user_comments = '';
@@ -32,18 +32,20 @@ class DatafestLetterWriting {
 		add_action( 'admin_menu', array( $this, 'create_menu' ) );
 		add_action( 'admin_init', array( $this, 'admin_init' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
-		// add shortcode datafest-letter-writing list_letters()
-		add_shortcode( 'datafest-letter-writing', array( $this, 'web_write_letter' ) );
-		$this->admin_email = get_option( 'letter_writing_email' );
-		$this->get_mode();
+		add_shortcode( 'speak-out', array( $this, 'web_interface' ) );
 	}
 	
-	function get_mode() {
+	function get_data() {
+		$this->admin_email = get_option( 'letter_writing_email' );
 		$this->letter_id = $this->get_param_from_ui( 'ltr', 'int', 0 );
-		$this->fsa = $this->get_param_from_ui( 'fsa', 'str', '' );
+		$this->get_postal();
+		if ( 0 < intval( $this->letter_id ) ) {
+			$this->letter = get_post( $this->letter_id );
+		}
+		// get recipient group list 
 		$_mode = $this->get_param_from_ui( 'df_form_submit', 'str', '' );
 		if ( 0 < $this->letter_id ) {
-			if ( 3 <= strlen( $this->fsa ) ) {
+			if ( 3 <= strlen( $this->postal ) ) {
 				if ( '' !== trim( $_mode ) ) {
 					$this->mode = 3;
 				} else {
@@ -76,24 +78,58 @@ class DatafestLetterWriting {
 		return $_output;
 	}
 
-	function web_write_letter() {
+	function web_interface() {
+		$this->get_data();
+		$df_letter_content = array(
+			array(
+				'title'   => 'Choose a Topic - Step 1:',
+				'content' => 'Choose a cause, enter your postal code and quickly send a message to your local representatives.'
+			),
+			array(
+				'title'   => 'Enter Postal Code - Step 2:',
+				'content' => 'Enter your postal code so we can search for the representatives in your area.'
+			),
+			array(
+				'title'   => 'Send Message - Step 3:',
+				'content' => 'In addition to sharing this important message, you can include your own thoughts. Email or print and send by mail yourself.'
+			),
+			array(
+				'title'   => 'Learn More - Step 4:',
+				'content' => 'Thank you for taking the time to help this cause. Share the message on social media. Learn more about the issues and find out about opportunities to volunteer or donate.'
+			),
+		); // move to settings
 		$_output = '';
-		$this->fsa = substr( $this->fsa, 0, 3 );
+		$_output .= '<link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">'; // better to enqueue
+		$_output .= '<link rel="stylesheet" href="' . DF_LETTER_URI . 'css/styles.css"></link>'; // better to enqueue
+		$_output .= '<h1>Speak Out Ottawa!</h1>' . "\n"; // move to settings
+		$_output .= '<div class="container" >' . "\n";
+		$_output .= '<div class="leftColumn">' . "\n";
+		$_output .= '<img src="' . DF_LETTER_URI . 'images/speakout.png" alt="Take Action" />' . "\n";
+		$_output .= '</div>' . "\n";
+		$_output .= '<div class="rightColumn">' . "\n";
+		$_output .= '<h3>Take action. Write a letter. Learn more.</h3>' . "\n"; // move to settings
+		$_output .= '<h4>' . esc_html( $df_letter_content[ $this->mode ]['content'] ) . '</h4>' . "\n";
+		$_output .= '</div>' . "\n";
+		$_output .= '</div>' . "\n";
+
+		$_output .= '<h2>' . esc_html( $df_letter_content[ $this->mode ]['title'] ) . '</h2>' . "\n";
 		$_mode = $this->get_param_from_ui( 'df_form_submit', 'str', '' );
-		$this->get_letter();
 		switch ( $this->mode ) {
 			case 1:
-				// second page: enter postal code / fsa
-				$_output .= $this->form_fsa();
+				// second page: enter postal code
+				$_output .= $this->form_postal();
+				$_output .= $this->display_letter();
 				break;
 			case 2:
 				// third page: write letter
-				$_output .= $this->set_cookie( 'fsa', $this->fsa );
+				$_output .= $this->set_cookie( 'postal', $this->postal );
+				$_output .= $this->display_letter();
 				$_output .= $this->form_letter();
 				break;
 			case 3:
 				// last page: send email and show next steps
 				$this->get_user_form();
+				$this->save_user_data();
 				$this->email_letter();
 				$_output .= $this->page_done();
 				break;
@@ -103,6 +139,7 @@ class DatafestLetterWriting {
 				$_output .= $this->list_letters();
 				break;
 		}
+		$_output .= '</div>';
 		return $_output;
 	}
 
@@ -110,6 +147,17 @@ class DatafestLetterWriting {
 		$this->user_name = $this->get_param_from_ui( 'df_letter_name', 'str', '' );
 		$this->user_email = $this->get_param_from_ui( 'df_letter_email', 'str', '' );
 		$this->user_comments = $this->get_param_from_ui( 'df_letter_notes', 'str', '' );
+	}
+
+	/**
+	* store user data and include letter chosen and notes added
+	* render elsewhere (admin) as petition
+	*/
+	function save_user_data() {
+		//$this->user_name = $this->get_param_from_ui( 'df_letter_name', 'str', '' );
+		//$this->user_email = $this->get_param_from_ui( 'df_letter_email', 'str', '' );
+		//$this->user_comments = $this->get_param_from_ui( 'df_letter_notes', 'str', '' );
+		//$this->letter->recip_groups
 	}
 
 	function email_letter() {
@@ -125,7 +173,11 @@ class DatafestLetterWriting {
 		$_content .= "\n\n";
 		$_content .= $this->user_name . "\n";
 		$_content .= $this->user_email . "\n";
-		wp_mail( 'cmjaimet@gmail.com', $_subject, $_content );
+		// send email to admin
+		wp_mail( $this->admin_email, $_subject, $_content );
+		// foreach recipient {
+		// wp_mail( $this->recip[], $_subject, $_content );
+		// }
 	}
 
 	function page_done() {
@@ -137,15 +189,22 @@ class DatafestLetterWriting {
 		return $_output;
 	}
 
+	function display_letter() {
+		if ( ! is_null( $this->letter ) ) {
+			echo $this->show_recipients();
+			echo '<h3>' . $this->letter->post_title . '</h3>';
+			echo '<i>';
+			echo apply_filters( 'the_content', $this->letter->post_content );
+			echo '</i>';
+		}
+	}
+
 	function form_letter() {
 		$_output = '';
 		if ( ! is_null( $this->letter ) ) {
-			$_output .= $this->show_recipients();
-			$_output .= '<h3>' . $this->letter->post_title . '</h3>';
-			$_output .= apply_filters( 'the_content', $this->letter->post_content );
 			$_output .= '<form method="POST" action="/write-letter">' . "\n";
 			$_output .= '<input type="hidden" name="ltr" value="' . intval( $this->letter_id ) . '" />' . "\n";
-			$_output .= '<input type="hidden" name="fsa" value="' . esc_attr( $this->fsa ) . '" />' . "\n";
+			$_output .= '<input type="hidden" name="postal" value="' . esc_attr( $this->postal ) . '" />' . "\n";
 			$_output .= '<div class="df_letter_notes">';
 			$_output .= '<h3>Additional Comments</h3>';
 			$_output .= '<textarea name="df_letter_notes">';
@@ -172,69 +231,62 @@ class DatafestLetterWriting {
 
 	function show_recipients() {
 		$_output = '';
-		$_output .= '<span class="df_recip_label">Recipients: </span>';
-		$_output .= '<ul class="df_recip_list">';
 		$_recipients = $this->get_recipients();
-		if ( ! is_null( $_recipients ) ) {
+		if ( ! empty( $_recipients ) ) {
+			$_output .= '<span class="df_recip_label">Recipients: </span>';
+			$_output .= '<ul class="df_recip_list">';
 			foreach ( $_recipients as $_idx => $_recip ) {
-				if ( '' !== trim( $_recip->contact_email ) ) {
+				//$this->letter->recip_groups filter by this
+				if ( '' !== trim( $_recip->rep_email ) ) {
 					$_output .= '<li>';
-					$_output .= esc_html( $_recip->contact_name );
-					$_output .= ' &#060;' . esc_html( $_recip->contact_email ) . '&#062;';
+					$_output .= esc_html( $_recip->rep_name );
+					$_output .= ' &#060;' . esc_html( $_recip->rep_email ) . '&#062;';
 					$_output .= '</li>';
 				}
 			}
+			$_output .= '</ul>';
 		}
-		$_output .= '</ul>';
 		return $_output;
 	}
 
-	function validate_sql_text( $_txt ) {
-		$_txt = $_txt;
-		return $_txt;
-	}
-
-	// get recipients from db based on $this->letter_id, $this->fsa
+	// get recipients from db based on $this->letter_id, $this->postal
 	function get_recipients() {
-		global $wpdb;
-		$_fsa = $this->validate_sql_text( $this->fsa );
-		$_sql = "SELECT R.recip_id, R.contact_email, R.contact_name, G.recip_group_name
-			FROM df_fsa_recipient AS F
-			INNER JOIN df_recip AS R ON F.recip_id = R.recip_id
-			INNER JOIN df_recip_group AS G ON G.recip_group_id = R.recip_group_id
-			WHERE F.fsa LIKE '" . $this->fsa . "' 
-			ORDER BY G.recip_group_id ASC ";
-		$_results = $wpdb->get_results( $_sql, OBJECT );
-		/*
-				echo $_sql;
-				print_r($_results);
-		*/
+		$_results = array();
+		if ( '' !== trim( $this->postal ) ) {
+			$_url = 'https://represent.opennorth.ca/postcodes/' . $this->postal; // validate in $this->get_data and below with esc_url()
+			$_code = $this->get_http_response_code( $_url );
+			echo $_code;
+			if ( ( 200 <= $_code ) && ( 400 > $_code ) ) {
+			$_json = file_get_contents( esc_url( $_url ) );
+			$_data = json_decode( $_json );
+			echo '<textarea style="width:100%;height:600px;">';
+			print_r($_data);
+			exit;
+			}
+		}
 		return $_results;
 	}
 
-	function get_letter() {
-		if ( 0 < intval( $this->letter_id ) ) {
-			$this->letter = get_post( $this->letter_id );
+	/**
+	* Excellent API but imperfect error handling on invalid endpoint so trap before retrieving file
+	* This may change from a 404 at some point to an empty/error object
+	*/
+	function get_http_response_code( $_url ) {
+		$_headers = get_headers( $_url );
+		$_code = 404; // default to failure
+		if ( is_array( $_headers ) && ( 9 <= count( $_headers ) ) ) {
+			$_code = intval( substr( $_headers[8], 9, 3 ) );
 		}
+		return $_code;
 	}
 
-	function form_fsa() {
+	function form_postal() {
 		$_output = '';
-		$_output .= '<div class="post-content" style="overflow=auto">' . "\n";
-		$_output .= '<div id="primary" class="content-area">' . "\n";
-		$_output .= '<main id="main" class="site-main" role="main">' . "\n";
-		$_output .= '<h1 data-fontsize="38" data-lineheight="48">Enter Postal Code:</h1>' . "\n";
-		$_output .= '<form method="POST" action="/write-letter">' . "\n";
+		$_output .= '<form method="POST" action="">' . "\n";
 		$_output .= '<input type="hidden" name="ltr" value="' . intval( $this->letter_id ) . '" />' . "\n";
-		$_output .= '<input type="text" name="fsa" value="" maxlength="7" style="max-width:150px;" border=""/>' . "\n";
-		$_output .= '<br><br>' . "\n";
-		$_output .= '<div class="fusion-button-wrapper">';
-		//$_output .= '<style type="text/css" scoped>.fusion-button.button-1 .fusion-button-text, .fusion-button.button-1 i {color:#fff;}.fusion-button.button-1 {border-width:1px;border-color:#fff;}.fusion-button.button-1 .fusion-button-icon-divider{border-color:#fff;}.fusion-button.button-1:hover .fusion-button-text, .fusion-button.button-1:hover i,.fusion-button.button-1:focus .fusion-button-text, .fusion-button.button-1:focus i,.fusion-button.button-1:active .fusion-button-text, .fusion-button.button-1:active{color:#fff;}.fusion-button.button-1:hover, .fusion-button.button-1:focus, .fusion-button.button-1:active{border-width:1px;border-color:#fff;}.fusion-button.button-1:hover .fusion-button-icon-divider, .fusion-button.button-1:hover .fusion-button-icon-divider, .fusion-button.button-1:active .fusion-button-icon-divider{border-color:#fff;}.fusion-button.button-1{background: #cd5856;}.fusion-button.button-1:hover,.button-1:focus,.fusion-button.button-1:active{background: #f54444;}.fusion-button.button-1{width:auto;}</style>';
-		//<a class="fusion-button button-flat button-round button-large button-default button-1" href="https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&amp;hosted_button_id= 5C9C8WQHZPDZL" target="_self">' . "\n";
-		$_output .= '<input type="submit" name="submit" value="GO!" class="df_letter_button" />' . "\n";
-		$_output .= '<div class="fusion-sep-clear"></div>' . "\n";
+		$_output .= '<input type="text" name="postal" value="" maxlength="7" style="max-width:150px;" border=""/>' . "\n";
+		$_output .= '<input type="submit" name="submit" value="GO!" class="button-rev" />' . "\n";
 		$_output .= '</form>' . "\n";
-		$_output .= '</div>' . "\n";
 		return $_output;
 	}
 
@@ -250,14 +302,14 @@ class DatafestLetterWriting {
 			'suppress_filters' => false
 		);
 		$_letters = get_posts( $_args );
-		$_output .= '<h2>Choose a Letter</h2>';
-		$_output .= '<ul class="df_letter_list">';
+		$_output .= '<ul>';
 		foreach ( $_letters as $_idx => $_letter ) {
 			$_output .= '<li><a href="?ltr=' . intval( $_letter->ID ) . '">';
 			$_output .= esc_html( $_letter->post_title );
 			$_output .= '</a></li>';
 		}
 		$_output .= '</ul>';
+		//$_output .= '<div class="button">SUGGEST A LETTER</div>';
 		return $_output;
 	}
 
@@ -344,7 +396,7 @@ class DatafestLetterWriting {
 		echo '<form method="POST" action="options.php">' . "\n";
 		wp_nonce_field( $this->post_type, 'pm_layout_noncename' );
 		settings_fields( 'letter-writing-settings-group' );
-		echo '<span class="df_fsa_label">Email: </span>' . "\n";
+		echo '<span class="df_postal_label">Email: </span>' . "\n";
 		echo '<input type="text" name="letter_writing_email" value="' . esc_attr( $this->admin_email ) . '" />';
 		submit_button();
 		echo '</form>' . "\n";
@@ -365,4 +417,18 @@ class DatafestLetterWriting {
 		//setcookie( $_name, $_value, time() + ( 60 * 60 * 24 * 120 ), '/' ); // 120 days - headers issue
 	}
 
+	function get_postal() {
+		$_postal = $this->get_param_from_ui( 'postal', 'str', '' ); // returns trimmed string
+		if ( '' !== $_postal ) {
+			$_postal = strtoupper( $_postal ); // API requires all caps postal
+			$_postal = preg_replace( '/[^A-Z0-9]/', '', $_postal ); // strip out spaces and anything else that isn't alphanumeric
+			if ( 6 !== strlen( $_postal ) ) {
+				$_postal = ''; // wrong length for a postal code so reject
+			} elseif ( ! preg_match( '/[A-Z][0-9][A-Z][0-9][A-Z][0-9]/', $_postal ) ) {
+				$_postal = ''; // wrong format - not A1A1A1 so reject
+			}
+			//$_postal = substr( $this->postal, 0, 3 );
+		}
+		$this->postal = $_postal;
+	}
 }
