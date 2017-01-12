@@ -39,6 +39,7 @@ class DatafestSpeakOut {
 	
 	function wp_enqueue_scripts() {
 		wp_enqueue_style( 'speakout_css', DF_LETTER_URI . 'css/styles.css' );
+		wp_enqueue_script( 'speakout_js', DF_LETTER_URI . 'js/speakout.js' );
 	}
 
 	function get_data() {
@@ -152,6 +153,7 @@ class DatafestSpeakOut {
 	}
 
 	function page_done() {
+		// last page should redirect to thank you page - might need to leave the shortcode or use JS
 		$_output = '';
 		//echo $this->user_name . '<br />';
 		//echo $this->user_email . '<br />';
@@ -205,9 +207,9 @@ class DatafestSpeakOut {
 			$_output .= '<h3>Email</h3>';
 			$_output .= '<input type="text" name="df_letter_email" value="' . esc_attr( $this->user_email ) . '" placeholder="your email" />';
 			$_output .= '</div>';
-			$_output .= '<div class="g-recaptcha" data-sitekey="' . $this->settings->recaptcha_public . '"></div>';
+			$_output .= '<div class="g-recaptcha" data-sitekey="' . $this->settings->recaptcha_public . '" data-callback="speakout_recaptcha"></div>';
 			$_output .= '<div class="df_letter_submit">';
-			$_output .= '<input type="submit" name="df_form_submit" class="df_letter_button" value="Send" />';
+			$_output .= '<input type="submit" id="speakout_submit" name="speakout_submit" class="df_letter_button" value="Send" style="display:none;" />';
 			$_output .= '</div>';
 			//$_output .= '<div class="df_letter_print">';
 			//$_output .= '<input type="button" name="df_letter_print" class="df_letter_button_inverse" value="Print" />';
@@ -444,7 +446,7 @@ class DatafestSpeakOut {
 		echo '<td>Page Tagline: </td>' . "\n";
 		echo '<td><input type="text" name="page_tagline" value="' . esc_attr( $this->settings->page_tagline ) . '" /></td>';
 		echo '</tr>' . "\n";
-		for ( $x = 0; $x <= 3; $x ++ ) {
+		for ( $x = 0; $x <= 2; $x ++ ) {
 			echo '<tr>' . "\n";
 			echo '<td>Step #' . intval( $x + 1 ) . ' Title: </td>' . "\n";
 			echo '<td><input type="text" name="step' . intval( $x ) . '_title" value="' . esc_attr( $this->settings->step[ $x ]->title ) . '" /></td>';
@@ -454,6 +456,10 @@ class DatafestSpeakOut {
 			echo '<td><input type="text" name="step' . intval( $x ) . '_summary" value="' . esc_attr( $this->settings->step[ $x ]->summary ) . '" /></td>';
 			echo '</tr>' . "\n";
 		}
+		echo '<tr>' . "\n";
+		echo '<td>Thank You Page: </td>' . "\n";
+		echo '<td><input type="text" name="thank_you_page" value="' . esc_attr( $this->settings->thank_you_page ) . '" placeholder="http://www.domain.com/thankyou" /></td>';
+		echo '</tr>' . "\n";
 		echo '</table>' . "\n";
 		submit_button();
 		echo '</form>' . "\n";
